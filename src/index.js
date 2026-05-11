@@ -26,6 +26,13 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Prometheus metrics
+const { register } = require('./utils/metrics');
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', register.contentType);
+  res.end(await register.metrics());
+});
+
 // Routes
 app.use('/webhook', webhookRoutes);
 app.use('/api/analytics', analyticsRoutes);
@@ -43,6 +50,7 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   logger.info(`PipelineIQ API running on port ${PORT}`);
   logger.info(`Health: http://localhost:${PORT}/health`);
+  logger.info(`Metrics: http://localhost:${PORT}/metrics`);
 });
 
 module.exports = app;

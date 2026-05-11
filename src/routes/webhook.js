@@ -5,24 +5,23 @@ const { storeBuildEvent } = require('../services/ingestionService');
 const { analyzeFlakyTests, getFailureSignature, getSimilarFailures } = require('../services/patternService');
 const { analyzeFailure } = require('../services/llmService');
 const { alertBuildFailure, alertFlakyTest } = require('../services/alertService');
+const { buildsTotal, flakyTestsGauge, llmLatency, successRate } = require('../utils/metrics');
 const logger = require('../utils/logger');
 
 function verifySignature(req) {
   const secret = process.env.GITHUB_WEBHOOK_SECRET;
   const sig = req.headers['x-hub-signature-256'];
-  if (!sig) return true; // skip in dev
+  if (!sig) return true;
   const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(JSON.stringify(req.body)).digest('hex');
   return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
 }
 
-// GitHub Actions webhook
 router.post('/github', async (req, res) => {
   if (!verifySignature(req)) return res.status(401).json({ error: 'Invalid signature' });
 
   const event = req.headers['x-github-event'];
   const payload = req.body;
 
-  // Handle workflow_run events
   if (event === 'workflow_run' || payload.workflow_run) {
     const run = payload.workflow_run || payload;
     const buildPayload = {
@@ -38,17 +37,19 @@ router.post('/github', async (req, res) => {
     };
 
     const build = await storeBuildEvent(buildPayload);
+    buildsTotal.inc({ repo: build.repo, status: build.status });
 
-    // Run analysis on failures
     if (build.status === 'failure') {
+      const start = Date.now();
       const sig = await getFailureSignature(build.repo, build.errorLog);
       const similar = await getSimilarFailures(build.repo, sig);
       const analysis = await analyzeFailure(build, similar);
+      llmLatency.observe(Date.now() - start);
 
       await alertBuildFailure(build, analysis);
 
-      // Check flaky tests
       const flaky = await analyzeFlakyTests(build.repo);
+      flakyTestsGauge.set({ repo: build.repo }, flaky.length);
       for (const f of flaky.filter(t => t.predicted)) {
         await alertFlakyTest(build.repo, f.test, f.failRate);
       }
@@ -62,15 +63,21 @@ router.post('/github', async (req, res) => {
   res.json({ received: true, event });
 });
 
-// Manual build event (for testing)
 router.post('/ingest', async (req, res) => {
   try {
     const build = await storeBuildEvent(req.body);
+    buildsTotal.inc({ repo: build.repo, status: build.status });
 
     if (build.status === 'failure') {
+      const start = Date.now();
       const sig = await getFailureSignature(build.repo, build.errorLog);
       const similar = await getSimilarFailures(build.repo, sig);
       const analysis = await analyzeFailure(build, similar);
+      llmLatency.observe(Date.now() - start);
+
+      const flaky = await analyzeFlakyTests(build.repo);
+      flakyTestsGauge.set({ repo: build.repo }, flaky.length);
+
       return res.json({ build, analysis });
     }
 

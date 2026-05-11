@@ -1,0 +1,4 @@
+2026-05-11 07:40:06: 2026-05-11T07:40:06.818Z [[32minfo[39m]: PipelineIQ API running on port 3000
+2026-05-11 07:40:06: 2026-05-11T07:40:06.821Z [[32minfo[39m]: Health: http://localhost:3000/health
+2026-05-11 07:40:06: 2026-05-11T07:40:06.821Z [[32minfo[39m]: Metrics: http://localhost:3000/metrics
+2026-05-11 07:40:06: 2026-05-11T07:40:06.827Z [[32minfo[39m]: Redis connected

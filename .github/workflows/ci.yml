@@ -1,0 +1,44 @@
+name: PipelineIQ CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Health check
+        run: |
+          node src/index.js &
+          sleep 3
+          curl -f http://localhost:3000/health
+          kill %1
+
+      - name: Test webhook ingest
+        run: |
+          node src/index.js &
+          sleep 3
+          curl -f -X POST http://localhost:3000/webhook/ingest \
+            -H "Content-Type: application/json" \
+            -d '{"repo":"test/repo","branch":"main","commit":"abc","status":"success","workflow":"CI"}'
+          kill %1
