@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "pipelineiq": {
+      "command": "node",
+      "args": ["/root/pipelineiq/mcp-server/index.js"],
+      "env": {
+        "API_URL": "http://localhost:3000"
+      }
+    }
+  }
+}
